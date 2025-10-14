@@ -1,0 +1,89 @@
+
+/**
+ * WordPress Optimization and Security Snippets
+ *
+ * This file includes code snippets to optimize performance, enhance speed,
+ * improve security, and ensure safe API interactions.
+ */
+
+// 1. Disable Emoji Script to Reduce HTTP Requests
+remove_action('wp_head', 'print_emoji_detection_script', 7);
+remove_action('wp_print_styles', 'print_emoji_styles');
+
+// 2. Limit Post Revisions to Save Database Space
+define('WP_POST_REVISIONS', 5);
+
+// 3. Increase Autosave Interval to Reduce Server Load
+define('AUTOSAVE_INTERVAL', 300); // 300 seconds = 5 minutes
+
+// 4. Remove WordPress Version Number for Security
+remove_action('wp_head', 'wp_generator');
+
+// 5. Lazy Load Images for Improved Performance
+add_filter('wp_lazy_loading_enabled', '__return_true');
+
+// 6. Defer Parsing of JavaScript to Improve Load Times
+function defer_parsing_of_js($url) {
+    if (is_user_logged_in()) return $url; // Skip for logged-in users
+    if (strpos($url, '.js') === false) return $url;
+    return str_replace(' src', ' defer="defer" src', $url);
+}
+add_filter('script_loader_tag', 'defer_parsing_of_js', 10);
+
+// 7. Disable Self Pingbacks to Avoid Unnecessary Server Load
+function disable_self_pingbacks(&$links) {
+    foreach ($links as $l => $link) {
+        if (strpos($link, home_url()) === 0) {
+            unset($links[$l]);
+        }
+    }
+}
+add_action('pre_ping', 'disable_self_pingbacks');
+
+// 8. Increase Memory Limit for Better Performance
+// define('WP_MEMORY_LIMIT', '256M');
+// define('WP_MAX_MEMORY_LIMIT', '512M');
+
+// 9. Optimize Heartbeat Frequency to Reduce Server Load
+add_action('init', 'optimize_heartbeat_frequency');
+function optimize_heartbeat_frequency() {
+    add_filter('heartbeat_settings', function($settings) {
+        $settings['interval'] = 60; // 60 seconds
+        return $settings;
+    });
+}
+
+// 10. Enforce HTTPS for API Interactions
+// Ensure the site and API requests use HTTPS for secure data transmission
+add_action('init', function() {
+    if (!is_ssl()) {
+        wp_redirect('https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'], 301);
+        exit;
+    }
+});
+
+// 11. Disable REST API for Unauthorized Users (Extra Layer of Security for API-driven Sites)
+add_filter('rest_authentication_errors', function ($result) {
+    if (!is_user_logged_in()) {
+        return new WP_Error('rest_forbidden', 'REST API restricted to logged-in users.', ['status' => 401]);
+    }
+    return $result;
+});
+
+// 12. Sanitize and Validate API Requests
+// Ensure all incoming and outgoing API requests are sanitized and validated
+function sanitize_api_data($data) {
+    return array_map('sanitize_text_field', $data); // Example: sanitizes each field
+}
+
+// Example usage for GET/POST data in an API request
+add_action('wp_ajax_nopriv_my_custom_api_action', 'handle_my_custom_api_action'); // public API endpoint
+function handle_my_custom_api_action() {
+    $input_data = sanitize_api_data($_GET); // sanitize incoming data
+    // Process API request here safely
+    wp_send_json_success(['data' => $input_data]); // Return sanitized output
+}
+
+// 13. Disable XML-RPC for Enhanced Security
+// XML-RPC is often targeted in brute-force attacks, so disable it if it's not needed.
+add_filter('xmlrpc_enabled', '__return_false');
