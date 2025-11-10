@@ -1,9 +1,11 @@
-
+<?php
 /**
  * WordPress Optimization and Security Snippets
  *
  * This file includes code snippets to optimize performance, enhance speed,
  * improve security, and ensure safe API interactions.
+ *
+ * FIXED VERSION: Resolves jQuery defer conflict and REST API issues
  */
 
 // 1. Disable Emoji Script to Reduce HTTP Requests
@@ -23,12 +25,37 @@ remove_action('wp_head', 'wp_generator');
 add_filter('wp_lazy_loading_enabled', '__return_true');
 
 // 6. Defer Parsing of JavaScript to Improve Load Times
-function defer_parsing_of_js($url) {
-    if (is_user_logged_in()) return $url; // Skip for logged-in users
-    if (strpos($url, '.js') === false) return $url;
-    return str_replace(' src', ' defer="defer" src', $url);
+// FIXED: Excludes jQuery and critical dependencies to prevent inline script errors
+function defer_parsing_of_js($tag, $handle) {
+    // Skip for logged-in users
+    if (is_user_logged_in()) return $tag;
+
+    // Critical scripts that should NOT be deferred (required by plugins/inline scripts)
+    $exclude_handles = array(
+        'jquery',
+        'jquery-core',
+        'jquery-migrate',
+        'jquery-ui-core',
+        'wp-polyfill',
+        'regenerator-runtime',
+        'wp-i18n'
+    );
+
+    // Don't defer excluded handles
+    if (in_array($handle, $exclude_handles)) {
+        return $tag;
+    }
+
+    // Only defer if it's a JS file and doesn't already have defer/async
+    if (strpos($tag, '.js') !== false &&
+        strpos($tag, 'defer') === false &&
+        strpos($tag, 'async') === false) {
+        return str_replace(' src', ' defer="defer" src', $tag);
+    }
+
+    return $tag;
 }
-add_filter('script_loader_tag', 'defer_parsing_of_js', 10);
+add_filter('script_loader_tag', 'defer_parsing_of_js', 10, 2);
 
 // 7. Disable Self Pingbacks to Avoid Unnecessary Server Load
 function disable_self_pingbacks(&$links) {
@@ -41,6 +68,7 @@ function disable_self_pingbacks(&$links) {
 add_action('pre_ping', 'disable_self_pingbacks');
 
 // 8. Increase Memory Limit for Better Performance
+// Uncomment if needed - usually better to set in wp-config.php
 // define('WP_MEMORY_LIMIT', '256M');
 // define('WP_MAX_MEMORY_LIMIT', '512M');
 
@@ -54,36 +82,100 @@ function optimize_heartbeat_frequency() {
 }
 
 // 10. Enforce HTTPS for API Interactions
-// Ensure the site and API requests use HTTPS for secure data transmission
-add_action('init', function() {
-    if (!is_ssl()) {
-        wp_redirect('https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'], 301);
-        exit;
+// IMPROVED: Better redirect handling with proper checks
+add_action('template_redirect', function() {
+    if (!is_ssl() && !is_admin()) {
+        // Check if headers already sent to prevent errors
+        if (!headers_sent()) {
+            wp_redirect('https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'], 301);
+            exit;
+        }
     }
 });
 
 // 11. Disable REST API for Unauthorized Users (Extra Layer of Security for API-driven Sites)
+// FIXED: Allows essential endpoints for forms, media, and plugin functionality
 add_filter('rest_authentication_errors', function ($result) {
-    if (!is_user_logged_in()) {
-        return new WP_Error('rest_forbidden', 'REST API restricted to logged-in users.', ['status' => 401]);
+    // If user is logged in, allow all access
+    if (is_user_logged_in()) {
+        return $result;
     }
-    return $result;
+
+    // Get the current REST route
+    $current_route = isset($GLOBALS['wp']->query_vars['rest_route']) ? $GLOBALS['wp']->query_vars['rest_route'] : '';
+
+    // Allow specific routes for guest users (forms, contact forms, etc.)
+    $allowed_routes = array(
+        '/forminator/',           // Forminator forms
+        '/contact-form-7/',       // Contact Form 7
+        '/wp/v2/media',          // Media uploads (if needed)
+        '/wc/',                  // WooCommerce (if applicable)
+        '/elementor/',           // Elementor forms
+        '/wpforms/',             // WPForms
+        '/gravityforms/',        // Gravity Forms
+    );
+
+    // Check if current route is in allowed list
+    foreach ($allowed_routes as $route) {
+        if (strpos($current_route, $route) !== false) {
+            return $result; // Allow access
+        }
+    }
+
+    // Block all other REST API access for non-logged users
+    return new WP_Error(
+        'rest_forbidden',
+        'REST API access restricted. Please log in.',
+        array('status' => 401)
+    );
 });
 
 // 12. Sanitize and Validate API Requests
 // Ensure all incoming and outgoing API requests are sanitized and validated
 function sanitize_api_data($data) {
-    return array_map('sanitize_text_field', $data); // Example: sanitizes each field
+    if (!is_array($data)) {
+        return sanitize_text_field($data);
+    }
+    return array_map('sanitize_text_field', $data);
 }
 
 // Example usage for GET/POST data in an API request
-add_action('wp_ajax_nopriv_my_custom_api_action', 'handle_my_custom_api_action'); // public API endpoint
+add_action('wp_ajax_nopriv_my_custom_api_action', 'handle_my_custom_api_action');
+add_action('wp_ajax_my_custom_api_action', 'handle_my_custom_api_action');
+
 function handle_my_custom_api_action() {
-    $input_data = sanitize_api_data($_GET); // sanitize incoming data
+    // Verify nonce for security
+    if (!isset($_REQUEST['nonce']) || !wp_verify_nonce($_REQUEST['nonce'], 'my_custom_action')) {
+        wp_send_json_error(array('message' => 'Invalid security token'), 403);
+    }
+
+    // Sanitize incoming data
+    $input_data = isset($_GET['data']) ? sanitize_api_data($_GET['data']) : array();
+
     // Process API request here safely
-    wp_send_json_success(['data' => $input_data]); // Return sanitized output
+    wp_send_json_success(array('data' => $input_data));
 }
 
 // 13. Disable XML-RPC for Enhanced Security
 // XML-RPC is often targeted in brute-force attacks, so disable it if it's not needed.
 add_filter('xmlrpc_enabled', '__return_false');
+
+// BONUS: Disable File Editing from Dashboard for Added Security
+if (!defined('DISALLOW_FILE_EDIT')) {
+    define('DISALLOW_FILE_EDIT', true);
+}
+
+// BONUS: Remove WordPress version from RSS feeds
+add_filter('the_generator', '__return_empty_string');
+
+// BONUS: Disable user enumeration for security
+add_action('init', 'disable_user_enumeration');
+function disable_user_enumeration() {
+    if (!is_admin() && isset($_SERVER['REQUEST_URI'])) {
+        if (preg_match('/(author=\d+|^\?author=\d+$)/i', $_SERVER['REQUEST_URI']) ||
+            (isset($_REQUEST['author']) && is_numeric($_REQUEST['author']))) {
+            wp_redirect(home_url(), 301);
+            exit;
+        }
+    }
+}
