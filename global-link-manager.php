@@ -1,6 +1,6 @@
 /**
- * Global Links Manager with Elementor Dynamic Tag - Extended Version
- * Properly integrates with Elementor's dynamic system
+ * Global Links Manager with Elementor Dynamic Tag & ACF Integration
+ * Properly integrates with Elementor's dynamic system and ACF
  */
 
 // 1. Create Settings Page
@@ -220,11 +220,244 @@ function render_global_links_settings_page() {
                 <li><strong>Fort Myers Portal Link</strong> - <?php echo esc_html($fortmyers); ?></li>
             </ul>
         </div>
+
+        <div class="card" style="max-width: 800px; margin-top: 20px;">
+            <h2>📝 Shortcode Usage (WYSIWYG Compatible)</h2>
+
+            <h3>Method 1: Simple URL Shortcodes</h3>
+            <p>Use these in WYSIWYG editor or anywhere in content:</p>
+            <pre style="background: #f5f5f5; padding: 15px; overflow-x: auto;">
+[patient_portal_link]
+[jacksonville_portal_link]
+[melbourne_portal_link]
+[naples_portal_link]
+[sarasota_portal_link]
+[stpete_portal_link]
+[hialeah_portal_link]
+[fortmyers_portal_link]</pre>
+
+            <h3>Method 2: Universal Shortcode with Parameter</h3>
+            <pre style="background: #f5f5f5; padding: 15px; overflow-x: auto;">
+[portal_link location="jacksonville"]
+[portal_link location="melbourne"]
+[portal_link location="naples"]
+[portal_link location="default"]</pre>
+
+            <h3>Method 3: Ready-Made Button (HTML Link)</h3>
+            <pre style="background: #f5f5f5; padding: 15px; overflow-x: auto;">
+[portal_button location="jacksonville"]Book Appointment[/portal_button]
+[portal_button location="melbourne" class="btn btn-primary"]Patient Portal[/portal_button]
+[portal_button location="naples" target="_self" text="Click Here"]</pre>
+
+            <h3>Method 4: Inside HTML (WYSIWYG Editor)</h3>
+            <p>Switch to Text/HTML mode in WYSIWYG and use:</p>
+            <pre style="background: #f5f5f5; padding: 15px; overflow-x: auto;">
+&lt;a href="[jacksonville_portal_link]"&gt;Visit Jacksonville Portal&lt;/a&gt;
+
+&lt;a href="[portal_link location='melbourne']" class="btn"&gt;Book Now&lt;/a&gt;
+
+&lt;button onclick="window.location='[naples_portal_link]'"&gt;Go to Portal&lt;/button&gt;</pre>
+
+            <h3>Method 5: In PHP Templates</h3>
+            <pre style="background: #f5f5f5; padding: 15px; overflow-x: auto;">
+// Echo URL directly
+echo get_jacksonville_portal_link();
+
+// Store in variable
+$portal_url = get_melbourne_portal_link();
+$link = '&lt;a href="' . $portal_url . '"&gt;Portal&lt;/a&gt;';
+
+// Use with do_shortcode
+$url = do_shortcode('[portal_link location="naples"]');
+echo '&lt;a href="' . $url . '"&gt;Naples Portal&lt;/a&gt;';</pre>
+
+            <h3>Method 6: Dynamic with ACF Field</h3>
+            <p>Get location from ACF field and use it dynamically:</p>
+            <pre style="background: #f5f5f5; padding: 15px; overflow-x: auto;">
+// In PHP template
+$user_location = get_field('user_location'); // Returns "jacksonville"
+$portal_url = do_shortcode('[portal_link location="' . $user_location . '"]');
+echo '&lt;a href="' . $portal_url . '"&gt;Your Local Portal&lt;/a&gt;';</pre>
+        </div>
+
+        <div class="card" style="max-width: 800px; margin-top: 20px;">
+            <h2>💡 Real-World Examples</h2>
+
+            <h3>Example 1: WYSIWYG Text Link</h3>
+            <pre style="background: #f5f5f5; padding: 15px;">
+Visit our &lt;a href="[jacksonville_portal_link]"&gt;Jacksonville Patient Portal&lt;/a&gt; to book.</pre>
+
+            <h3>Example 2: Dynamic Button in Page Builder</h3>
+            <pre style="background: #f5f5f5; padding: 15px;">
+[portal_button location="melbourne" class="elementor-button"]Access Portal[/portal_button]</pre>
+
+            <h3>Example 3: Store in JavaScript Variable</h3>
+            <pre style="background: #f5f5f5; padding: 15px;">
+&lt;script&gt;
+var portalUrl = '[naples_portal_link]';
+document.getElementById('myBtn').href = portalUrl;
+&lt;/script&gt;</pre>
+
+            <h3>Example 4: PHP with Conditions</h3>
+            <pre style="background: #f5f5f5; padding: 15px;">
+$location = $_GET['city'] ?? 'default';
+$portal = do_shortcode('[portal_link location="' . $location . '"]');
+echo '&lt;a href="' . $portal . '"&gt;Portal&lt;/a&gt;';</pre>
+        </div>
+
+        <div class="card" style="max-width: 800px; margin-top: 20px;">
+            <h2>ACF Integration</h2>
+            <p>These links are also available as ACF Options fields. You can access them in your templates using:</p>
+            <pre style="background: #f5f5f5; padding: 15px; overflow-x: auto;">
+// Get links in PHP templates
+$default_link = get_field('patient_portal_link', 'option');
+$jacksonville = get_field('patient_portal_jacksonville', 'option');
+$melbourne = get_field('patient_portal_melbourne', 'option');
+// ... and so on for all locations</pre>
+            <p><strong>ACF Options Page:</strong> Go to <strong>Custom Fields → Options</strong> to manage these links via ACF interface.</p>
+        </div>
     </div>
     <?php
 }
 
-// 2. Register Custom Elementor Dynamic Tags
+// 2. Register ACF Options Page and Fields
+add_action('acf/init', 'register_global_links_acf_options');
+function register_global_links_acf_options() {
+    if (function_exists('acf_add_options_page')) {
+
+        // Add options page
+        acf_add_options_page(array(
+            'page_title'    => 'Portal Links (ACF)',
+            'menu_title'    => 'Portal Links (ACF)',
+            'menu_slug'     => 'portal-links-acf',
+            'capability'    => 'edit_posts',
+            'parent_slug'   => 'global-links-settings',
+            'icon_url'      => 'dashicons-admin-links',
+            'redirect'      => false
+        ));
+    }
+}
+
+// Sync WordPress options with ACF fields
+add_action('acf/init', 'register_portal_links_acf_fields');
+function register_portal_links_acf_fields() {
+    if (function_exists('acf_add_local_field_group')) {
+
+        acf_add_local_field_group(array(
+            'key' => 'group_portal_links',
+            'title' => 'Patient Portal Links',
+            'fields' => array(
+                array(
+                    'key' => 'field_patient_portal_link',
+                    'label' => 'Default Portal Link',
+                    'name' => 'patient_portal_link',
+                    'type' => 'url',
+                    'default_value' => get_option('patient_portal_link', 'https://patient.thedocapp.net/'),
+                    'placeholder' => 'https://patient.thedocapp.net/',
+                ),
+                array(
+                    'key' => 'field_patient_portal_jacksonville',
+                    'label' => 'Jacksonville Portal Link',
+                    'name' => 'patient_portal_jacksonville',
+                    'type' => 'url',
+                    'default_value' => get_option('patient_portal_jacksonville', 'https://patient.thedocapp.net/?doctorId=41275'),
+                    'placeholder' => 'https://patient.thedocapp.net/?doctorId=41275',
+                ),
+                array(
+                    'key' => 'field_patient_portal_melbourne',
+                    'label' => 'Melbourne Portal Link',
+                    'name' => 'patient_portal_melbourne',
+                    'type' => 'url',
+                    'default_value' => get_option('patient_portal_melbourne', 'https://patient.thedocapp.net/?doctorId=17590'),
+                    'placeholder' => 'https://patient.thedocapp.net/?doctorId=17590',
+                ),
+                array(
+                    'key' => 'field_patient_portal_naples',
+                    'label' => 'Naples Portal Link',
+                    'name' => 'patient_portal_naples',
+                    'type' => 'url',
+                    'default_value' => get_option('patient_portal_naples', 'https://patient.thedocapp.net/?doctorId=5062'),
+                    'placeholder' => 'https://patient.thedocapp.net/?doctorId=5062',
+                ),
+                array(
+                    'key' => 'field_patient_portal_sarasota',
+                    'label' => 'Sarasota Portal Link',
+                    'name' => 'patient_portal_sarasota',
+                    'type' => 'url',
+                    'default_value' => get_option('patient_portal_sarasota', 'https://patient.thedocapp.net/?doctorId=5062'),
+                    'placeholder' => 'https://patient.thedocapp.net/?doctorId=5062',
+                ),
+                array(
+                    'key' => 'field_patient_portal_stpete',
+                    'label' => 'St Pete Portal Link',
+                    'name' => 'patient_portal_stpete',
+                    'type' => 'url',
+                    'default_value' => get_option('patient_portal_stpete', 'https://patient.thedocapp.net/?doctorId=45993'),
+                    'placeholder' => 'https://patient.thedocapp.net/?doctorId=45993',
+                ),
+                array(
+                    'key' => 'field_patient_portal_hialeah',
+                    'label' => 'Hialeah Portal Link',
+                    'name' => 'patient_portal_hialeah',
+                    'type' => 'url',
+                    'default_value' => get_option('patient_portal_hialeah', 'https://patient.thedocapp.net/?doctorId=41399'),
+                    'placeholder' => 'https://patient.thedocapp.net/?doctorId=41399',
+                ),
+                array(
+                    'key' => 'field_patient_portal_fortmyers',
+                    'label' => 'Fort Myers Portal Link',
+                    'name' => 'patient_portal_fortmyers',
+                    'type' => 'url',
+                    'default_value' => get_option('patient_portal_fortmyers', 'https://patient.thedocapp.net/?doctorId=57312'),
+                    'placeholder' => 'https://patient.thedocapp.net/?doctorId=57312',
+                ),
+            ),
+            'location' => array(
+                array(
+                    array(
+                        'param' => 'options_page',
+                        'operator' => '==',
+                        'value' => 'portal-links-acf',
+                    ),
+                ),
+            ),
+        ));
+    }
+}
+
+// Sync ACF updates back to WordPress options
+add_action('acf/save_post', 'sync_acf_to_wp_options', 20);
+function sync_acf_to_wp_options($post_id) {
+    // Only run on options pages
+    if ($post_id !== 'options') {
+        return;
+    }
+
+    $fields = array(
+        'patient_portal_link',
+        'patient_portal_jacksonville',
+        'patient_portal_melbourne',
+        'patient_portal_naples',
+        'patient_portal_sarasota',
+        'patient_portal_stpete',
+        'patient_portal_hialeah',
+        'patient_portal_fortmyers'
+    );
+
+    foreach ($fields as $field) {
+        $value = get_field($field, 'option');
+        if ($value) {
+            update_option($field, $value);
+        }
+    }
+
+    // Clear Elementor cache
+    if (class_exists('\Elementor\Plugin')) {
+        \Elementor\Plugin::$instance->files_manager->clear_cache();
+    }
+}
+
+// 3. Register Custom Elementor Dynamic Tags
 add_action('elementor/dynamic_tags/register', function($dynamic_tags_manager) {
 
     // Base class for all portal link tags
@@ -353,7 +586,7 @@ add_action('elementor/dynamic_tags/register', function($dynamic_tags_manager) {
     $dynamic_tags_manager->register(new FortMyers_Portal_Link_Tag());
 });
 
-// 3. Shortcodes (backup method)
+// 4. Shortcodes (backup method)
 add_shortcode('patient_portal_link', function() {
     return esc_url(get_option('patient_portal_link', 'https://patient.thedocapp.net/'));
 });
@@ -379,7 +612,7 @@ add_shortcode('fortmyers_portal_link', function() {
     return esc_url(get_option('patient_portal_fortmyers', 'https://patient.thedocapp.net/?doctorId=57312'));
 });
 
-// 4. Helper functions for templates
+// 5. Helper functions for templates
 function get_patient_portal_link() {
     return esc_url(get_option('patient_portal_link', 'https://patient.thedocapp.net/'));
 }
