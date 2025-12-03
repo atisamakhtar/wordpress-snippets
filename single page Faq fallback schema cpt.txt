@@ -1,0 +1,108 @@
+/**
+ * Name: FAQ Schema (Output Buffer) — CPT 29148
+ * Purpose: Parse final HTML (including Elementor Pro Section via ACF shortcode) and inject FAQ JSON-LD
+ * Scope: Frontend Only
+ */
+
+add_action('template_redirect', function () {
+    // Only on single marijuana_doctor with ID 29148
+    if ( ! is_singular('marijuana_doctor') ) return;
+    $post_id = get_queried_object_id();
+    if ( (int) $post_id !== 29148 ) return;
+
+    // Must have DOM available
+    if ( ! class_exists('DOMDocument') ) return;
+
+    // Start output buffering to capture final HTML
+    ob_start(function ($html) use ($post_id) {
+        // Avoid duplicate if schema already present (Elementor/another plugin)
+        if ( stripos($html, '"@type":"FAQPage"') !== false || stripos($html, 'faq-schema-jsonld') !== false ) {
+            return $html;
+        }
+
+        // Quick presence check for nested accordion markup
+        if ( stripos($html, 'e-n-accordion') === false ) {
+            // No nested accordion signature -> return original
+            return $html;
+        }
+
+        libxml_use_internal_errors(true);
+        $dom = new DOMDocument();
+
+        // Ensure UTF-8 and suppress warnings from imperfect HTML
+        $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html);
+        $xpath = new DOMXPath($dom);
+
+        // Find Nested Accordion items first
+        $detailsNodes = $xpath->query('//div[contains(@class,"e-n-accordion")]//details[contains(@class,"e-n-accordion-item")]');
+
+        // Fallback: classic Elementor Accordion, if needed
+        if ( ! $detailsNodes || $detailsNodes->length === 0 ) {
+            $detailsNodes = $xpath->query('//*[@class and contains(@class,"elementor-accordion")]//*[contains(@class,"elementor-accordion-item")]');
+        }
+
+        if ( ! $detailsNodes || $detailsNodes->length === 0 ) {
+            // Could not find items
+            return $html;
+        }
+
+        $items = [];
+        foreach ($detailsNodes as $details) {
+            // QUESTION
+            $qNode = $xpath->query('.//summary//div[contains(@class,"e-n-accordion-item-title-text")]', $details)->item(0);
+            if ( ! $qNode ) {
+                $qNode = $xpath->query('.//*[contains(@class,"elementor-tab-title")]', $details)->item(0);
+            }
+            $qText = $qNode ? trim(preg_replace('/\s+/', ' ', $qNode->textContent)) : '';
+
+            // ANSWER (prefer Text Editor widget container; fallbacks included)
+            $aNode = $xpath->query('.//div[contains(@class,"elementor-widget-text-editor")]//div[contains(@class,"elementor-widget-container")]', $details)->item(0);
+            if ( ! $aNode ) {
+                $aNode = $xpath->query('.//div[contains(@class,"elementor-widget-container")]', $details)->item(0);
+            }
+            if ( ! $aNode ) {
+                $aNode = $xpath->query('.//*[contains(@class,"elementor-tab-content")]', $details)->item(0);
+            }
+
+            $aHtml = $aNode ? $dom->saveHTML($aNode) : '';
+            $aText = trim(preg_replace('/\s+/', ' ', wp_strip_all_tags($aHtml)));
+
+            if ($qText !== '' && $aText !== '') {
+                $items[] = [
+                    '@type' => 'Question',
+                    'name'  => $qText,
+                    'acceptedAnswer' => [
+                        '@type' => 'Answer',
+                        'text'  => $aText,
+                    ],
+                ];
+            }
+        }
+
+        if (empty($items)) {
+            return $html;
+        }
+
+        $schema = [
+            '@context'   => 'https://schema.org',
+            '@type'      => 'FAQPage',
+            'mainEntity' => $items,
+        ];
+
+        $json = '<script type="application/ld+json" id="faq-schema-jsonld">' .
+                wp_json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) .
+                '</script>';
+
+        // Inject into <head> if possible, else before </body>
+        if ( stripos($html, '</head>') !== false ) {
+            $html = str_ireplace('</head>', $json . "\n</head>", $html);
+        } elseif ( stripos($html, '</body>') !== false ) {
+            $html = str_ireplace('</body>', $json . "\n</body>", $html);
+        } else {
+            // Last resort: append
+            $html .= $json;
+        }
+
+        return $html;
+    });
+});
