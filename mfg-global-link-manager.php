@@ -1,3 +1,5 @@
+<?php
+
 /**
  * Global Links Manager with Elementor Dynamic Tag & ACF Integration
  * Properly integrates with Elementor's dynamic system and ACF
