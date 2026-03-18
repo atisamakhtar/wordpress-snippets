@@ -1,0 +1,71 @@
+<!-- add in footer -->
+
+<style>
+#myBtn {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  right: 30px;
+  z-index: 99;
+  border: none;
+  outline: none;
+  background-color: #9ECD4D; /* Updated background color */
+  color: white;
+  cursor: pointer;
+  padding: 0px; /* Adjusted for better centering */
+  border-radius: 50%;
+  width: 60px; /* Size to accommodate larger icon */
+  height: 60px; /* Size to accommodate larger icon */
+  display: flex; /* Ensures the contents are flexibly organized */
+  align-items: center; /* Vertically centers the icon */
+  justify-content: center; /* Horizontally centers the icon */
+  z-index: 10000;
+  border: 3px solid white;
+}
+
+#myBtn:hover {
+  background-color: #9ECD4D; /* Keeps the same color on hover */
+}
+
+#myBtn i {
+  font-size: 30px; /* Sets the icon size to 30px */
+}
+@media (max-width: 768px) {
+  #myBtn {
+    width: 45px; /* Smaller size for mobile */
+    height: 45px; /* Smaller size for mobile */
+    padding: 5px; /* Reduced padding for mobile */
+  }
+
+  #myBtn i {
+    font-size: 25px; /* Smaller icon size for mobile */
+  }
+}
+</style>
+
+<!-- Updated button to include a Font Awesome icon instead of text -->
+<button onclick="topFunction()" id="myBtn" title="Go to top">
+  <i class="fas fa-angle-up"></i> <!-- Font Awesome icon -->
+</button>
+
+<script>
+// Get the button
+let mybutton = document.getElementById("myBtn");
+
+// When the user scrolls down 20px from the top of the document, show the button
+window.onscroll = function() {scrollFunction()};
+
+function scrollFunction() {
+  if (document.body.scrollTop > 100 || document.documentElement.scrollTop > 100) {
+    mybutton.style.display = "block";
+  } else {
+    mybutton.style.display = "none";
+  }
+}
+
+// When the user clicks on the button, scroll to the top of the document
+function topFunction() {
+  document.body.scrollTop = 0;
+  document.documentElement.scrollTop = 0;
+}
+</script>
